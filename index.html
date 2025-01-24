@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Excel vers PowerPoint</title>
+
+  <!-- Dépendances via CDN : SheetJS et PptxGenJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.11.0/dist/pptxgen.bundle.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    #excelFile {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Convertisseur Excel &rarr; PowerPoint</h1>
+  <p>Choisissez votre fichier Excel, puis cliquez sur “Convertir”.</p>
+
+  <input type="file" id="excelFile" accept=".xlsx" />
+  <button id="convertButton">Convertir en PPTX</button>
+
+  <script>
+    // Déclaration de fonctions utilitaires
+    async function readExcel(file) {
+      // On lit le fichier comme un ArrayBuffer
+      const data = await file.arrayBuffer();
+      // On convertit en workbook SheetJS
+      const workbook = XLSX.read(data, { type: "array" });
+      // On suppose que les données sont dans la première feuille
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      // Conversion de la feuille en JSON (un tableau d'objets)
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+      return jsonData;
+    }
+
+    document.getElementById("convertButton").addEventListener("click", async () => {
+      const fileInput = document.getElementById("excelFile");
+      if (!fileInput.files.length) {
+        alert("Veuillez sélectionner un fichier Excel d'abord.");
+        return;
+      }
+
+      try {
+        // 1. Lecture du fichier Excel
+        const excelData = await readExcel(fileInput.files[0]);
+        
+        // 2. Vérification minimale des colonnes requises
+        const requiredCols = ["code projet", "nom projet", "date début", "date fin"];
+        requiredCols.forEach(col => {
+          if (!(col in excelData[0])) {
+            throw new Error(`La colonne "${col}" est manquante dans votre Excel.`);
+          }
+        });
+
+        // 3. Création du PPTX via PptxGenJS
+        let pptx = new PptxGenJS();
+
+        // Optionnel : définir un format (par ex. écran 16:9)
+        pptx.layout = "16x9";
+
+        // 4. Pour chaque ligne de l'Excel, on crée une diapositive
+        excelData.forEach((row, index) => {
+          // Création d'une diapo
+          let slide = pptx.addSlide();
+
+          // Arrière-plan / couleurs (optionnel)
+          // slide.background = { color: "F1F1F1" };
+
+          // Titre
+          slide.addText(`Projet : ${row["nom projet"]}`, {
+            x: 0.5, 
+            y: 0.5, 
+            w: 9,  // Largeur de la zone
+            h: 1,  // Hauteur
+            fontSize: 24,
+            bold: true,
+            align: "left"
+          });
+
+          // Sous-titre / détails
+          slide.addText([
+            { text: "Code projet : ", options: { bold: true } },
+            { text: `${row["code projet"]}\n` },
+            { text: "Date début : ", options: { bold: true } },
+            { text: `${row["date début"]}\n` },
+            { text: "Date de fin : ", options: { bold: true } },
+            { text: `${row["date fin"]}\n` }
+          ], {
+            x: 0.5,
+            y: 1.5,
+            w: 9,
+            fontSize: 16,
+            align: "left"
+          });
+        });
+
+        // 5. Génération et téléchargement du fichier
+        pptx.writeFile({ fileName: "Projets_Presentation.pptx" })
+            .then(() => {
+              alert("Le PPTX a été généré et téléchargé !");
+            })
+            .catch(err => {
+              console.error("Erreur lors de la génération PPTX:", err);
+              alert("Une erreur est survenue lors de la génération du PPTX.");
+            });
+
+      } catch (error) {
+        console.error("Erreur lors de la conversion :", error);
+        alert("Erreur : " + error.message);
+      }
+    });
+  </script>
+</body>
+</html>
